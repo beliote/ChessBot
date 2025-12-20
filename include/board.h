@@ -16,6 +16,9 @@ public:
     int castling_rights;
     int halfmove_clock;
     int fullmove_number;
+    
+    // Zobrist hash key
+    uint64_t hash_key;
 
     // Constructor
     Board();
@@ -41,6 +44,9 @@ public:
     
     // Get FEN string
     std::string get_fen() const;
+    
+    // Get Zobrist hash key
+    uint64_t get_hash() const { return hash_key; }
 
 private:
     // Move history for unmake

@@ -1,5 +1,6 @@
 #include "board.h"
 #include "movegenerator.h"
+#include "zobrist.h"
 #include <iostream>
 #include <sstream>
 #include <cctype>
@@ -21,6 +22,7 @@ void Board::clear_board() {
     castling_rights = 0;
     halfmove_clock = 0;
     fullmove_number = 1;
+    hash_key = 0;
 }
 
 void Board::update_occupancy() {
@@ -113,6 +115,30 @@ void Board::set_fen(const std::string& fen) {
     }
 
     update_occupancy();
+    
+    // Calculate full Zobrist hash from scratch
+    hash_key = 0;
+    
+    // Hash all pieces
+    for (Square sq = 0; sq < 64; sq++) {
+        Piece piece = piece_at(sq);
+        if (piece != NO_PIECE) {
+            hash_key ^= Zobrist::piece_keys[piece][sq];
+        }
+    }
+    
+    // Hash en passant square
+    if (en_passant_square != NO_SQ) {
+        hash_key ^= Zobrist::en_passant_keys[en_passant_square];
+    }
+    
+    // Hash castling rights
+    hash_key ^= Zobrist::castle_keys[castling_rights];
+    
+    // Hash side to move
+    if (side_to_move == BLACK) {
+        hash_key ^= Zobrist::side_key;
+    }
 }
 
 std::string Board::get_fen() const {
@@ -151,33 +177,73 @@ void Board::make_move(Move move) {
     Piece piece = piece_at(from);
     Piece captured = piece_at(to);
     
+    int old_castling = castling_rights;
+    Square old_ep = en_passant_square;
+    
+    // Update hash: remove piece from source square
+    hash_key ^= Zobrist::piece_keys[piece][from];
+    
     // Move piece
     pieces[piece] = Bitboards::pop_bit(pieces[piece], from);
     pieces[piece] = Bitboards::set_bit(pieces[piece], to);
     
+    // Update hash: add piece to destination square (will be updated if promotion)
+    hash_key ^= Zobrist::piece_keys[piece][to];
+    
     // Capture
     if (captured != NO_PIECE) {
+        // Update hash: remove captured piece
+        hash_key ^= Zobrist::piece_keys[captured][to];
         pieces[captured] = Bitboards::pop_bit(pieces[captured], to);
     }
     
     // Promotion
     if (move_type == MOVE_TYPE_PROMOTION) {
+        // Update hash: remove pawn from destination
+        hash_key ^= Zobrist::piece_keys[piece][to];
         pieces[piece] = Bitboards::pop_bit(pieces[piece], to);
+        
+        // Update hash: add promoted piece
         int promo_piece = (side_to_move == WHITE) ? (WHITE_KNIGHT + promotion) : (BLACK_KNIGHT + promotion);
         pieces[promo_piece] = Bitboards::set_bit(pieces[promo_piece], to);
+        hash_key ^= Zobrist::piece_keys[promo_piece][to];
     }
     // En Passant
     else if (move_type == MOVE_TYPE_EN_PASSANT) {
-        Square capture_sq = (side_to_move == WHITE) ? (to + 8) : (to - 8); 
+        Square capture_sq = (side_to_move == WHITE) ? (to + 8) : (to - 8);
         Piece ep_pawn = (side_to_move == WHITE) ? BLACK_PAWN : WHITE_PAWN;
+        
+        // Update hash: remove en passant captured pawn
+        hash_key ^= Zobrist::piece_keys[ep_pawn][capture_sq];
         pieces[ep_pawn] = Bitboards::pop_bit(pieces[ep_pawn], capture_sq);
     }
     // Castling
     else if (move_type == MOVE_TYPE_CASTLING) {
-        if (to == SQ_G1) { pieces[WHITE_ROOK] = Bitboards::pop_bit(pieces[WHITE_ROOK], SQ_H1); pieces[WHITE_ROOK] = Bitboards::set_bit(pieces[WHITE_ROOK], SQ_F1); }
-        else if (to == SQ_C1) { pieces[WHITE_ROOK] = Bitboards::pop_bit(pieces[WHITE_ROOK], SQ_A1); pieces[WHITE_ROOK] = Bitboards::set_bit(pieces[WHITE_ROOK], SQ_D1); }
-        else if (to == SQ_G8) { pieces[BLACK_ROOK] = Bitboards::pop_bit(pieces[BLACK_ROOK], SQ_H8); pieces[BLACK_ROOK] = Bitboards::set_bit(pieces[BLACK_ROOK], SQ_F8); }
-        else if (to == SQ_C8) { pieces[BLACK_ROOK] = Bitboards::pop_bit(pieces[BLACK_ROOK], SQ_A8); pieces[BLACK_ROOK] = Bitboards::set_bit(pieces[BLACK_ROOK], SQ_D8); }
+        if (to == SQ_G1) {
+            // White kingside: rook from H1 to F1
+            hash_key ^= Zobrist::piece_keys[WHITE_ROOK][SQ_H1];
+            hash_key ^= Zobrist::piece_keys[WHITE_ROOK][SQ_F1];
+            pieces[WHITE_ROOK] = Bitboards::pop_bit(pieces[WHITE_ROOK], SQ_H1);
+            pieces[WHITE_ROOK] = Bitboards::set_bit(pieces[WHITE_ROOK], SQ_F1);
+        } else if (to == SQ_C1) {
+            // White queenside: rook from A1 to D1
+            hash_key ^= Zobrist::piece_keys[WHITE_ROOK][SQ_A1];
+            hash_key ^= Zobrist::piece_keys[WHITE_ROOK][SQ_D1];
+            pieces[WHITE_ROOK] = Bitboards::pop_bit(pieces[WHITE_ROOK], SQ_A1);
+            pieces[WHITE_ROOK] = Bitboards::set_bit(pieces[WHITE_ROOK], SQ_D1);
+        } else if (to == SQ_G8) {
+            // Black kingside: rook from H8 to F8
+            hash_key ^= Zobrist::piece_keys[BLACK_ROOK][SQ_H8];
+            hash_key ^= Zobrist::piece_keys[BLACK_ROOK][SQ_F8];
+            pieces[BLACK_ROOK] = Bitboards::pop_bit(pieces[BLACK_ROOK], SQ_H8);
+            pieces[BLACK_ROOK] = Bitboards::set_bit(pieces[BLACK_ROOK], SQ_F8);
+        } else if (to == SQ_C8) {
+            // Black queenside: rook from A8 to D8
+            hash_key ^= Zobrist::piece_keys[BLACK_ROOK][SQ_A8];
+            hash_key ^= Zobrist::piece_keys[BLACK_ROOK][SQ_D8];
+            pieces[BLACK_ROOK] = Bitboards::pop_bit(pieces[BLACK_ROOK], SQ_A8);
+            pieces[BLACK_ROOK] = Bitboards::set_bit(pieces[BLACK_ROOK], SQ_D8);
+        }
     }
     
     // Castling rights update
@@ -187,11 +253,31 @@ void Board::make_move(Move move) {
     if (from == SQ_A1 || to == SQ_A1) castling_rights &= ~WQ;
     if (from == SQ_H8 || to == SQ_H8) castling_rights &= ~BK;
     if (from == SQ_A8 || to == SQ_A8) castling_rights &= ~BQ;
+    
+    // Update hash: castling rights changed
+    if (castling_rights != old_castling) {
+        hash_key ^= Zobrist::castle_keys[old_castling];
+        hash_key ^= Zobrist::castle_keys[castling_rights];
+    }
 
     // En Passant update
+    // Remove old en passant square from hash
+    if (old_ep != NO_SQ) {
+        hash_key ^= Zobrist::en_passant_keys[old_ep];
+    }
+    
     en_passant_square = NO_SQ;
-    if (piece == WHITE_PAWN && (int)from - (int)to == 16) en_passant_square = from - 8;
-    if (piece == BLACK_PAWN && (int)to - (int)from == 16) en_passant_square = from + 8;
+    if (piece == WHITE_PAWN && (int)from - (int)to == 16) {
+        en_passant_square = from - 8;
+        hash_key ^= Zobrist::en_passant_keys[en_passant_square];
+    }
+    if (piece == BLACK_PAWN && (int)to - (int)from == 16) {
+        en_passant_square = from + 8;
+        hash_key ^= Zobrist::en_passant_keys[en_passant_square];
+    }
+    
+    // Update hash: side to move changed
+    hash_key ^= Zobrist::side_key;
     
     side_to_move = 1 - side_to_move;
     update_occupancy();
