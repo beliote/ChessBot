@@ -1,5 +1,30 @@
-# .gitignore
+# Build artifacts
 *.exe
 *.o
 *.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+
+# Build directories
+build/
+bin/
+obj/
+.vs/
 .vscode/
+.idea/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
