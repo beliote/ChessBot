@@ -1,5 +1,6 @@
 #include "search.h"
 #include "tt.h"
+#include "book.h"
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
@@ -334,6 +335,13 @@ int Search::negamax(Board& board, int depth, int alpha, int beta, int ply) {
 }
 
 Move Search::get_best_move(Board& board, int max_depth, int time_limit_ms) {
+    // 1. Vérifier le livre d'ouverture
+    Move book_move = Book::get_book_move(board);
+    if (book_move != MOVE_NONE) {
+        std::cout << "info string Book Move Played" << std::endl;
+        return book_move;
+    }
+
     reset_stats();
     set_time_limit(time_limit_ms);
     

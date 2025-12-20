@@ -3,6 +3,7 @@
 #include "bitboard.h"
 #include "zobrist.h"
 #include "tt.h"
+#include "book.h"
 #include <iostream>
 
 int main() {
@@ -10,6 +11,7 @@ int main() {
     Bitboards::init();
     MoveGenerator::init();
     Zobrist::init_zobrist();
+    Book::init();
     TT::init(64);  // Initialize TT with 64MB
     
     // Start UCI protocol loop

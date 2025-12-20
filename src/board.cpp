@@ -142,7 +142,47 @@ void Board::set_fen(const std::string& fen) {
 }
 
 std::string Board::get_fen() const {
-    return ""; // Placeholder
+    std::string fen = "";
+    int empty = 0;
+
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            Square sq = square_from_coords(rank, file);
+            Piece piece = piece_at(sq);
+
+            if (piece == NO_PIECE) {
+                empty++;
+            } else {
+                if (empty > 0) {
+                    fen += std::to_string(empty);
+                    empty = 0;
+                }
+                const char* piece_chars = "PNBRQKpnbrqk"; // Correspond à l'enum Piece
+                fen += piece_chars[piece];
+            }
+        }
+        if (empty > 0) {
+            fen += std::to_string(empty);
+            empty = 0;
+        }
+        if (rank < 7) fen += "/";
+    }
+
+    fen += (side_to_move == WHITE) ? " w " : " b ";
+    
+    // Droits de roque
+    std::string castling = "";
+    if (castling_rights & WK) castling += "K";
+    if (castling_rights & WQ) castling += "Q";
+    if (castling_rights & BK) castling += "k";
+    if (castling_rights & BQ) castling += "q";
+    if (castling == "") castling = "-";
+    fen += castling;
+
+    // En passant (simplifié pour le livre d'ouverture qui n'utilise souvent que la position des pièces)
+    fen += " - 0 1"; 
+
+    return fen;
 }
 
 void Board::print() const {
