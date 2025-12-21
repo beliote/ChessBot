@@ -5,10 +5,10 @@
 class Evaluation {
 public:
     // Material values
-    static constexpr int PAWN_VALUE = 100;
+    static constexpr int PAWN_VALUE = 93;
     static constexpr int KNIGHT_VALUE = 320;
     static constexpr int BISHOP_VALUE = 330;
-    static constexpr int ROOK_VALUE = 500;
+    static constexpr int ROOK_VALUE = 499;
     static constexpr int QUEEN_VALUE = 900;
     static constexpr int KING_VALUE = 20000;
     
