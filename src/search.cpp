@@ -225,6 +225,30 @@ int Search::negamax(Board& board, int depth, int alpha, int beta, int ply) {
     if (depth <= 0) {
         return quiescence(board, alpha, beta);
     }
+
+    
+    if (depth >= 3 && ply > 0 && !board.is_in_check()) {
+        
+        board.make_null_move();
+        
+        // On cherche avec une profondeur réduite (R=2 est standard)
+        // depth - 1 (coup joué) - 2 (réduction) = depth - 3
+        int R = 2;
+        
+        // Recherche avec fenêtre nulle (Null Window Search) : on veut juste savoir si score >= beta
+        int score = -negamax(board, depth - 1 - R, -beta, -beta + 1, ply + 1);
+        
+        board.unmake_null_move();
+        
+        if (stop_flag) return 0; // Sécurité temps
+
+        // Si le score est trop fort (Beta Cutoff) même en passant notre tour...
+        if (score >= beta) {
+            // ...alors notre position est écrasante. On coupe !
+            return beta; 
+        }
+    }
+    // -------------------------
     
     // Generate moves
     std::vector<Move> moves;

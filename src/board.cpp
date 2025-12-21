@@ -406,3 +406,38 @@ bool Board::is_in_check() const {
     Square king_sq = Bitboards::get_lsb_index(king_bb);
     return is_square_attacked(king_sq, (Color)(1 - side_to_move));
 }
+
+
+
+void Board::make_null_move() {
+    // 1. Sauvegarder la case "en passant" car le coup nul la réinitialise
+    stored_ep_square = en_passant_square;
+
+    // 2. Mettre à jour le Hash (Retirer la clé En Passant si elle existe)
+    if (en_passant_square != NO_SQ) {
+        hash_key ^= Zobrist::en_passant_keys[en_passant_square];
+    }
+    
+    // 3. Reset En Passant (on ne peut pas prendre en passant après un coup nul)
+    en_passant_square = NO_SQ;
+
+    // 4. Changer le trait (C'est à l'autre de jouer)
+    side_to_move = (side_to_move == WHITE) ? BLACK : WHITE;
+    hash_key ^= Zobrist::side_key;
+    
+    // Note : On ne touche pas aux pièces, ni aux droits de roque.
+}
+
+void Board::unmake_null_move() {
+    // 1. Changer le trait (revenir au joueur courant)
+    side_to_move = (side_to_move == WHITE) ? BLACK : WHITE;
+    hash_key ^= Zobrist::side_key;
+
+    // 2. Restaurer la case En Passant
+    en_passant_square = stored_ep_square;
+    
+    // 3. Restaurer le Hash si besoin
+    if (en_passant_square != NO_SQ) {
+        hash_key ^= Zobrist::en_passant_keys[en_passant_square];
+    }
+}

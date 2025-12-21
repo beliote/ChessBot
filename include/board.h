@@ -48,6 +48,11 @@ public:
     // Get Zobrist hash key
     uint64_t get_hash() const { return hash_key; }
 
+    // Principe de Null Move Pruning
+    void make_null_move();
+    void unmake_null_move();
+    Square stored_ep_square;
+
 private:
     // Move history for unmake
     struct MoveHistory {
