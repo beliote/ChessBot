@@ -15,25 +15,24 @@
 // White: rank 6-7 (48-63) = starting, rank 0 (0-7) = promotion (high bonus)
 // Black: rank 0-1 (0-15) = starting, rank 7 (56-63) = promotion (high bonus when flipped)
 const int Evaluation::PAWN_PST[64] = {
-    // Rank 0 (A8-H8, indices 0-7) - White promotion rank (HIGH positive value)
-    900, 900, 900, 900, 900, 900, 900, 900,
-    // Rank 1 (A7-H7, indices 8-15) - Part of Black starting rank
-    -50, -50, -50, -50, -50, -50, -50, -50,
-    // Rank 2 (A6-H6, indices 16-23)
+    // Rank 0 (Promotion)
+    0,   0,   0,   0,   0,   0,   0,   0,
+    // Rank 1
+    50, 50, 50, 10, 10, 50, 50, 50,
+    // Rank 2 (6ème rangée relative: très avancée)
     10, 10, 20, 30, 30, 20, 10, 10,
-    // Rank 3 (A5-H5, indices 24-31)
-    20, 20, 30, 40, 40, 30, 20, 20,
-    // Rank 4 (A4-H4, indices 32-39)
-    30, 30, 40, 50, 50, 40, 30, 30,
-    // Rank 5 (A3-H3, indices 40-47)
-    40, 40, 50, 60, 60, 50, 40, 40,
-    // Rank 6 (A2-H2, indices 48-55) - Part of White starting rank
-    -50, -50, -50, -50, -50, -50, -50, -50,
-    // Rank 7 (A1-H1, indices 56-63) - Black promotion rank (HIGH positive value, used when flipped)
-    900, 900, 900, 900, 900, 900, 900, 900
+    // Rank 3 (5ème rangée relative: e5, d5...)
+     5,  5, 10, 25, 25, 10,  5,  5,
+    // Rank 4 (4ème rangée relative: e4, d4...) - LE CENTRE EST ROI
+     0,  0,  0, 20, 20,  0,  0,  0,
+    // Rank 5 (3ème rangée relative: e3, d3...) - On punit a3/h3 !
+     5, -5, -10,  0,  0, -10, -5,  5,
+    // Rank 6 (Départ Blancs)
+    50, 50, 50, 10, 10, 50, 50, 50,
+    // Rank 7 (Départ Noirs - utilisé inversé)
+     0,   0,   0,   0,   0,   0,   0,   0
 };
 
-// Knight PST: Encourage centralization
 const int Evaluation::KNIGHT_PST[64] = {
     // Rank 0
     -50, -40, -30, -30, -30, -30, -40, -50,
@@ -41,35 +40,26 @@ const int Evaluation::KNIGHT_PST[64] = {
     -40, -20,   0,   0,   0,   0, -20, -40,
     // Rank 2
     -30,   0,  10,  15,  15,  10,   0, -30,
-    // Rank 3
+    // Rank 3 (Centre fort)
     -30,   5,  15,  20,  20,  15,   5, -30,
-    // Rank 4
+    // Rank 4 (Centre fort)
     -30,   0,  15,  20,  20,  15,   0, -30,
     // Rank 5
     -30,   5,  10,  15,  15,  10,   5, -30,
-    // Rank 6
+    // Rank 6 (On décourage les cavaliers de rester derrière)
     -40, -20,   0,   5,   5,   0, -20, -40,
     // Rank 7
     -50, -40, -30, -30, -30, -30, -40, -50
 };
 
-// Bishop PST: Encourage centralization and long diagonals
 const int Evaluation::BISHOP_PST[64] = {
-    // Rank 0
     -20, -10, -10, -10, -10, -10, -10, -20,
-    // Rank 1
     -10,   0,   0,   0,   0,   0,   0, -10,
-    // Rank 2
     -10,   0,   5,  10,  10,   5,   0, -10,
-    // Rank 3
     -10,   5,   5,  10,  10,   5,   5, -10,
-    // Rank 4
     -10,   0,  10,  10,  10,  10,   0, -10,
-    // Rank 5
     -10,  10,  10,  10,  10,  10,  10, -10,
-    // Rank 6
     -10,   5,   0,   0,   0,   0,   5, -10,
-    // Rank 7
     -20, -10, -10, -10, -10, -10, -10, -20
 };
 
@@ -207,7 +197,7 @@ int Evaluation::evaluate(const Board& board) {
                 
                 // Count attacked squares (mobility)
                 int mobility = Bitboards::count_bits(attacks & ~board.occupancy[WHITE]);
-                white_score += mobility * 3;  // 3 cp per attacked square
+                white_score += mobility * 5;  // 3 cp per attacked square
             }
             
             // Opening penalties for white
@@ -248,7 +238,7 @@ int Evaluation::evaluate(const Board& board) {
                 
                 // Count attacked squares (mobility)
                 int mobility = Bitboards::count_bits(attacks & ~board.occupancy[BLACK]);
-                black_score += mobility * 3;  // 3 cp per attacked square
+                black_score += mobility * 5;  // 3 cp per attacked square
             }
             
             // Opening penalties for black

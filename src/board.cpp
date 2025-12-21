@@ -15,6 +15,7 @@ Board::Board() {
 }
 
 void Board::clear_board() {
+    history.clear();
     for (int i = 0; i < 12; i++) pieces[i] = 0;
     for (int i = 0; i < 3; i++) occupancy[i] = 0;
     side_to_move = WHITE;
@@ -209,6 +210,9 @@ void Board::print() const {
 // ============================================================================
 
 void Board::make_move(Move move) {
+    // 1. Sauvegarder la position actuelle dans l'historique
+    history.push_back(hash_key);
+
     Square from = get_from_sq(move);
     Square to = get_to_sq(move);
     int move_type = get_move_type(move);
@@ -440,4 +444,16 @@ void Board::unmake_null_move() {
     if (en_passant_square != NO_SQ) {
         hash_key ^= Zobrist::en_passant_keys[en_passant_square];
     }
+}
+
+
+bool Board::is_repetition() const {
+    // On parcourt l'historique
+    for (size_t i = 0; i < history.size(); i++) {
+        // Si la clé actuelle (hash_key) est déjà dans l'historique
+        if (history[i] == hash_key) {
+            return true;
+        }
+    }
+    return false;
 }

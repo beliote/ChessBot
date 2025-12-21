@@ -200,6 +200,14 @@ int Search::negamax(Board& board, int depth, int alpha, int beta, int ply) {
             return 0;  // Return immediately if time is up
         }
     }
+
+    // --- DETECTION DE RÉPÉTITION ---
+    // Si la position actuelle est une répétition et qu'on n'est pas à la racine (ply > 0)
+    // On retourne 0 (Score de la Nulle)
+    if (ply > 0 && board.is_repetition()) {
+        // On peut retourner 0, ou un score de "Contempt" (mépris) si on veut éviter la nulle à tout prix
+        return 0; 
+    }
     
     if (depth > max_depth_reached) {
         max_depth_reached = depth;

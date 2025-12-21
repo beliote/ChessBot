@@ -2,15 +2,16 @@
 
 #include "types.h"
 #include "bitboard.h"
+#include <vector>  
 #include <string>
 
 class Board {
 public:
-    // Bitboards for each piece type
-    Bitboard pieces[12];  // WHITE_PAWN through BLACK_KING
+    // Bitboards par type de pièce
+    Bitboard pieces[12];  // WHITE_PAWN à BLACK_KING
     Bitboard occupancy[3];  // WHITE, BLACK, BOTH
 
-    // Board state
+    // État du plateau
     Color side_to_move;
     Square en_passant_square;
     int castling_rights;
@@ -20,57 +21,48 @@ public:
     // Zobrist hash key
     uint64_t hash_key;
 
-    // Constructor
+    // Constructeur
     Board();
     
-    // Initialize from FEN string
+    // Initialisation depuis FEN
     void set_fen(const std::string& fen);
     
-    // Get piece at square
+    // Récupérer une pièce
     Piece piece_at(Square sq) const;
     
-    // Make/unmake move
+    // Jouer un coup
     void make_move(Move move);
-    void unmake_move();
+    // Annuler un coup (Non implémenté dans ce moteur qui utilise la copie de plateau)
+    void unmake_move(); 
     
-    // Check if square is attacked by color
+    // Vérifications
     bool is_square_attacked(Square sq, Color by_color) const;
-    
-    // Check if current side is in check
     bool is_in_check() const;
     
-    // Print board
+    // Affichage
     void print() const;
-    
-    // Get FEN string
     std::string get_fen() const;
     
-    // Get Zobrist hash key
+    // Accesseur Hash
     uint64_t get_hash() const { return hash_key; }
 
-    // Principe de Null Move Pruning
+    // --- DETECTION DE REPETITION ---
+    // On utilise un vecteur dynamique pour stocker les anciennes clés
+    std::vector<uint64_t> history;
+    bool is_repetition() const;
+
+    // --- NULL MOVE PRUNING ---
     void make_null_move();
     void unmake_null_move();
     Square stored_ep_square;
 
 private:
-    // Move history for unmake
-    struct MoveHistory {
-        Move move;
-        Square en_passant_square;
-        int castling_rights;
-        int halfmove_clock;
-        Piece captured_piece;
-    };
-    
-    static constexpr int MAX_GAME_LENGTH = 1024;
-    MoveHistory history[MAX_GAME_LENGTH];
-    int history_ply;
-    
-    // Helper functions
+    // Helper functions internes
     void clear_board();
     void update_occupancy();
     void add_piece(Piece piece, Square sq);
     void remove_piece(Square sq);
-};
 
+    // J'ai supprimé ici l'ancienne structure MoveHistory qui créait le conflit
+    // et qui ne servait pas puisque unmake_move est vide.
+};
