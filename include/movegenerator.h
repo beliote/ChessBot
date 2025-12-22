@@ -33,7 +33,7 @@ public:
     static Bitboard get_queen_attacks(Square sq, Bitboard occupancy);
     
     // Generate moves
-    static void generate_moves(const class Board& board, std::vector<Move>& moves);
+    static void generate_pseudo_moves(const class Board& board, std::vector<Move>& moves);
     static void generate_pawn_moves(const class Board& board, std::vector<Move>& moves);
     static void generate_knight_moves(const class Board& board, std::vector<Move>& moves);
     static void generate_bishop_moves(const class Board& board, std::vector<Move>& moves);

@@ -6,8 +6,6 @@
 Bitboard MoveGenerator::PAWN_ATTACKS[2][64];
 Bitboard MoveGenerator::KNIGHT_ATTACKS[64];
 Bitboard MoveGenerator::KING_ATTACKS[64];
-
-// Tables non utilisées mais requises pour la compilation
 Bitboard MoveGenerator::BISHOP_MASKS[64];
 Bitboard MoveGenerator::ROOK_MASKS[64];
 Bitboard MoveGenerator::BISHOP_ATTACKS[64][512];
@@ -362,8 +360,11 @@ void MoveGenerator::generate_king_moves(const Board& board, std::vector<Move>& m
     }
 }
 
-void MoveGenerator::generate_moves(const Board& board, std::vector<Move>& moves) {
+
+// --- GENERATION PSEUDO-LEGALE (RAPIDE) ---
+void MoveGenerator::generate_pseudo_moves(const Board& board, std::vector<Move>& moves) {
     moves.clear();
+    // On génère tout ce qui bouge géométriquement
     generate_pawn_moves(board, moves);
     generate_knight_moves(board, moves);
     generate_bishop_moves(board, moves);
@@ -372,33 +373,63 @@ void MoveGenerator::generate_moves(const Board& board, std::vector<Move>& moves)
     generate_king_moves(board, moves);
 }
 
+// --- GENERATION LEGALE (LENTE - Pour compatibilité seulement) ---
 void MoveGenerator::generate_legal_moves(const Board& board, std::vector<Move>& moves) {
+    std::vector<Move> pseudo;
+    generate_pseudo_moves(board, pseudo);
     moves.clear();
-    std::vector<Move> pseudo_legal_moves;
-    generate_moves(board, pseudo_legal_moves);
     
-    for (Move move : pseudo_legal_moves) {
-        // 1. CRITIQUE : Créer une copie propre du plateau À L'INTÉRIEUR de la boucle
-        Board test_board = board; 
-        
-        // 2. Jouer le coup sur la copie (le trait passe à l'adversaire)
-        test_board.make_move(move);
-        
-        // 3. CRITIQUE : Vérifier si le Roi de celui QUI VIENT DE JOUER est attaqué
-        // make_move a inversé side_to_move, donc le joueur qui a fait le coup est (1 - test_board.side_to_move)
-        Color mover = (Color)(1 - test_board.side_to_move);
-        
-        // Trouver le roi du joueur
+    for (Move m : pseudo) {
+        Board copy = board;
+        copy.make_move(m);
+        // Vérification légalité classique (lente)
+        Color mover = (Color)(1 - copy.side_to_move);
         int king_idx = (mover == WHITE) ? WHITE_KING : BLACK_KING;
-        Bitboard king_bb = test_board.pieces[king_idx];
-        
-        // S'il y a un roi (sécurité), vérifier s'il est attaqué par le camp adverse (qui a maintenant le trait)
-        if (king_bb) {
-            Square king_sq = Bitboards::get_lsb_index(king_bb);
-            // Est-ce que 'king_sq' est attaqué par 'test_board.side_to_move' ?
-            if (!test_board.is_square_attacked(king_sq, test_board.side_to_move)) {
-                moves.push_back(move);
-            }
+        Bitboard king_bb = copy.pieces[king_idx];
+        int king_sq = __builtin_ctzll(king_bb);
+        if (!copy.is_square_attacked(king_sq, copy.side_to_move)) {
+            moves.push_back(m);
         }
     }
 }
+
+// void MoveGenerator::generate_moves(const Board& board, std::vector<Move>& moves) {
+//     moves.clear();
+//     generate_pawn_moves(board, moves);
+//     generate_knight_moves(board, moves);
+//     generate_bishop_moves(board, moves);
+//     generate_rook_moves(board, moves);
+//     generate_queen_moves(board, moves);
+//     generate_king_moves(board, moves);
+// }
+
+// void MoveGenerator::generate_legal_moves(const Board& board, std::vector<Move>& moves) {
+//     moves.clear();
+//     std::vector<Move> pseudo_legal_moves;
+//     generate_moves(board, pseudo_legal_moves);
+    
+//     for (Move move : pseudo_legal_moves) {
+//         // 1. CRITIQUE : Créer une copie propre du plateau À L'INTÉRIEUR de la boucle
+//         Board test_board = board; 
+        
+//         // 2. Jouer le coup sur la copie (le trait passe à l'adversaire)
+//         test_board.make_move(move);
+        
+//         // 3. CRITIQUE : Vérifier si le Roi de celui QUI VIENT DE JOUER est attaqué
+//         // make_move a inversé side_to_move, donc le joueur qui a fait le coup est (1 - test_board.side_to_move)
+//         Color mover = (Color)(1 - test_board.side_to_move);
+        
+//         // Trouver le roi du joueur
+//         int king_idx = (mover == WHITE) ? WHITE_KING : BLACK_KING;
+//         Bitboard king_bb = test_board.pieces[king_idx];
+        
+//         // S'il y a un roi (sécurité), vérifier s'il est attaqué par le camp adverse (qui a maintenant le trait)
+//         if (king_bb) {
+//             Square king_sq = Bitboards::get_lsb_index(king_bb);
+//             // Est-ce que 'king_sq' est attaqué par 'test_board.side_to_move' ?
+//             if (!test_board.is_square_attacked(king_sq, test_board.side_to_move)) {
+//                 moves.push_back(move);
+//             }
+//         }
+//     }
+// }

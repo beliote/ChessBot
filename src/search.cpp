@@ -6,14 +6,13 @@
 #include <iostream>
 #include <vector>
 
-// Initialisation des membres statiques
+// Init static
 uint64_t Search::nodes_searched = 0;
 int Search::max_depth_reached = 0;
 std::chrono::steady_clock::time_point Search::start_time;
 int Search::allotted_time_ms = 0;
 bool Search::stop_flag = false;
 
-// Tableaux statiques
 Move Search::killer_moves[64][2] = {};
 int Search::history[12][64] = {};
 
@@ -30,15 +29,14 @@ bool Search::is_time_up() {
     if (allotted_time_ms <= 0) return false;
     if ((nodes_searched & 2047) == 0) {
         auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
-        if (elapsed >= allotted_time_ms) return true;
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() >= allotted_time_ms) 
+            return true;
     }
     return false;
 }
 
-// Fonction de score corrigée : utilise les membres statiques de la classe
 int Search::score_move(Move move, const Board& board, int ply, Move tt_move) {
-    if (move == tt_move) return 20000; // TT Move en premier
+    if (move == tt_move) return 20000;
 
     int captured = board.piece_at(get_to_sq(move));
     if (captured != NO_PIECE && captured <= 11) {
@@ -58,6 +56,23 @@ int Search::score_move(Move move, const Board& board, int ply, Move tt_move) {
     return 0;
 }
 
+// Fonction utilitaire pour vérifier la légalité APRES le coup
+bool is_legal(const Board& board) {
+    // board est l'état APRES le coup. 
+    // side_to_move a changé. On vérifie si celui qui vient de jouer (l'autre couleur) est en échec.
+    Color mover = (Color)(1 - board.side_to_move);
+    
+    // On trouve le roi du mover
+    int king_idx = (mover == WHITE) ? WHITE_KING : BLACK_KING;
+    Bitboard king_bb = board.pieces[king_idx];
+    
+    if (king_bb == 0) return false; // Roi mangé ?! (Ne devrait pas arriver)
+    int king_sq = __builtin_ctzll(king_bb);
+    
+    // Est-il attaqué par le joueur courant (qui était l'adversaire avant le coup) ?
+    return !board.is_square_attacked(king_sq, board.side_to_move);
+}
+
 int Search::quiescence(Board& board, int alpha, int beta) {
     if (is_time_up()) stop_flag = true;
     if (stop_flag) return 0;
@@ -69,20 +84,25 @@ int Search::quiescence(Board& board, int alpha, int beta) {
 
     std::vector<Move> moves;
     moves.reserve(64);
-    MoveGenerator::generate_legal_moves(board, moves);
+    // OPTIMISATION : Pseudo moves seulement
+    MoveGenerator::generate_pseudo_moves(board, moves);
 
     std::vector<std::pair<int, Move>> captures;
     captures.reserve(moves.size());
     for (Move m : moves) {
         if (board.piece_at(get_to_sq(m)) != NO_PIECE) 
-            // Appel corrigé : pas besoin de passer killer/history, et tt_move est NONE
             captures.push_back({score_move(m, board, 0, MOVE_NONE), m});
     }
     std::sort(captures.rbegin(), captures.rend());
 
     for (const auto& pair : captures) {
+        Move move = pair.second;
         Board next = board;
-        next.make_move(pair.second);
+        next.make_move(move);
+        
+        // CHECK LEGALITY LAZY
+        if (!is_legal(next)) continue; // Coup illégal, on passe
+
         int score = -quiescence(next, -beta, -alpha);
         
         if (stop_flag) return 0;
@@ -96,11 +116,7 @@ int Search::negamax(Board& board, int depth, int alpha, int beta, int ply) {
     if (is_time_up()) stop_flag = true;
     if (stop_flag) return 0;
 
-    // TT Probe
-    int tt_score = 0;
-    Move tt_move = MOVE_NONE;
-    int tt_depth = 0;
-    int tt_flag = 0;
+    int tt_score = 0; Move tt_move = MOVE_NONE; int tt_depth = 0; int tt_flag = 0;
     if (TT::probe(board.hash_key, tt_score, tt_move, tt_depth, tt_flag, depth, alpha, beta)) {
         return tt_score;
     }
@@ -121,32 +137,31 @@ int Search::negamax(Board& board, int depth, int alpha, int beta, int ply) {
 
     std::vector<Move> moves;
     moves.reserve(256);
-    MoveGenerator::generate_legal_moves(board, moves);
-
-    if (moves.empty()) {
-        if (in_check) return -49000 + ply;
-        return 0;
-    }
+    // OPTIMISATION : Pseudo moves
+    MoveGenerator::generate_pseudo_moves(board, moves);
 
     std::vector<std::pair<int, Move>> sorted_moves;
     sorted_moves.reserve(moves.size());
     for (Move m : moves) {
-        // Appel corrigé : on passe ply et tt_move
         sorted_moves.push_back({score_move(m, board, ply, tt_move), m});
     }
     std::sort(sorted_moves.rbegin(), sorted_moves.rend());
 
     int best_score = -50000;
     Move best_move_found = MOVE_NONE;
-    int start_alpha = alpha;
+    int legal_moves_count = 0;
     
     for (size_t i = 0; i < sorted_moves.size(); ++i) {
         Move move = sorted_moves[i].second;
         Board next = board;
         next.make_move(move);
         
+        // CHECK LEGALITY LAZY
+        if (!is_legal(next)) continue; 
+        legal_moves_count++;
+
         int score;
-        if (i == 0) {
+        if (legal_moves_count == 1) {
             score = -negamax(next, depth - 1, -beta, -alpha, ply + 1);
         } else {
             score = -negamax(next, depth - 1, -alpha - 1, -alpha, ply + 1);
@@ -173,9 +188,15 @@ int Search::negamax(Board& board, int depth, int alpha, int beta, int ply) {
         if (alpha >= beta) break;
     }
 
+    // Gestion Mat / Pat
+    if (legal_moves_count == 0) {
+        if (in_check) return -49000 + ply;
+        return 0;
+    }
+
     int flag = TT_ALPHA;
     if (best_score >= beta) flag = TT_BETA;
-    else if (best_score > start_alpha) flag = TT_EXACT;
+    else if (best_score > alpha) flag = TT_EXACT;
     
     TT::store(board.hash_key, best_score, best_move_found, depth, flag, ply);
 
@@ -194,12 +215,14 @@ Move Search::get_best_move(Board& board, int max_depth, int time_limit_ms) {
     allotted_time_ms = (time_limit_ms > 50) ? time_limit_ms - 50 : time_limit_ms;
 
     std::vector<Move> root_moves;
+    // Ici on garde generate_legal_moves pour être sûr d'avoir une racine propre
+    // C'est appelé 1 seule fois, donc pas grave pour la perf
     MoveGenerator::generate_legal_moves(board, root_moves);
+    
     if (root_moves.empty()) return MOVE_NONE;
 
     std::vector<std::pair<int, Move>> sorted_root;
     for (Move m : root_moves) {
-        // Appel corrigé : ply=0, pas de tt_move initial connu ici (ou on pourrait probe)
         sorted_root.push_back({score_move(m, board, 0, MOVE_NONE), m});
     }
     std::sort(sorted_root.rbegin(), sorted_root.rend());
@@ -235,13 +258,9 @@ Move Search::get_best_move(Board& board, int max_depth, int time_limit_ms) {
 
         if (!stop_flag) {
             best_move = current_best_move;
-            // Réorganisation du tri racine
             for (auto& pair : sorted_root) {
-                if (pair.second == best_move) {
-                    pair.first = 100000; 
-                } else {
-                    pair.first = score_move(pair.second, board, 0, MOVE_NONE);
-                }
+                if (pair.second == best_move) pair.first = 100000; 
+                else pair.first = score_move(pair.second, board, 0, MOVE_NONE);
             }
             std::sort(sorted_root.rbegin(), sorted_root.rend());
 
