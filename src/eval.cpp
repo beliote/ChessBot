@@ -1,6 +1,9 @@
 #include "eval.h"
 #include "movegenerator.h"
 #include "bitboard.h"
+#include <cctype>
+
+extern int evaluate_nnue(const Board& board);
 
 // Piece-Square Tables adapted for A8=0 coordinate system
 // White pieces: start at rank 6-7 (squares 48-63), move UP (decrease index) toward rank 0
@@ -155,148 +158,6 @@ int Evaluation::get_pst_value(Piece piece, Square sq) {
 }
 
 int Evaluation::evaluate(const Board& board) {
-    int white_score = 0;
-    int black_score = 0;
-    
-    // Count pieces for opening detection
-    int white_piece_count = 0;
-    int black_piece_count = 0;
-    
-    // Evaluate all pieces
-    for (Square sq = 0; sq < 64; sq++) {
-        Piece piece = board.piece_at(sq);
-        if (piece == NO_PIECE) continue;
-        
-        int material = get_piece_value(piece);
-        int positional = get_pst_value(piece, sq);
-        
-        if (piece < BLACK_PAWN) {
-            // White piece
-            white_score += material + positional;
-            white_piece_count++;
-            
-            // Mobility bonus for white pieces (except pawns and king)
-            if (piece == WHITE_KNIGHT || piece == WHITE_BISHOP || 
-                piece == WHITE_ROOK || piece == WHITE_QUEEN) {
-                Bitboard attacks = 0;
-                
-                switch (piece) {
-                    case WHITE_KNIGHT:
-                        attacks = MoveGenerator::get_knight_attacks(sq);
-                        break;
-                    case WHITE_BISHOP:
-                        attacks = MoveGenerator::get_bishop_attacks(sq, board.occupancy[BOTH]);
-                        break;
-                    case WHITE_ROOK:
-                        attacks = MoveGenerator::get_rook_attacks(sq, board.occupancy[BOTH]);
-                        break;
-                    case WHITE_QUEEN:
-                        attacks = MoveGenerator::get_queen_attacks(sq, board.occupancy[BOTH]);
-                        break;
-                }
-                
-                // Count attacked squares (mobility)
-                int mobility = Bitboards::count_bits(attacks & ~board.occupancy[WHITE]);
-                white_score += mobility * 5;  // 3 cp per attacked square
-            }
-            
-            // Opening penalties for white
-            if (white_piece_count <= 16) {  // Opening phase
-                // Penalty for moving king early (unless castling)
-                if (piece == WHITE_KING) {
-                    int rank = rank_of(sq);
-                    // King should stay on back rank (rank 6-7) in opening
-                    if (rank < 6) {
-                        white_score -= 20;  // Penalty for moving king forward
-                    }
-                }
-            }
-        } else {
-            // Black piece
-            black_score += material + positional;
-            black_piece_count++;
-            
-            // Mobility bonus for black pieces (except pawns and king)
-            if (piece == BLACK_KNIGHT || piece == BLACK_BISHOP || 
-                piece == BLACK_ROOK || piece == BLACK_QUEEN) {
-                Bitboard attacks = 0;
-                
-                switch (piece) {
-                    case BLACK_KNIGHT:
-                        attacks = MoveGenerator::get_knight_attacks(sq);
-                        break;
-                    case BLACK_BISHOP:
-                        attacks = MoveGenerator::get_bishop_attacks(sq, board.occupancy[BOTH]);
-                        break;
-                    case BLACK_ROOK:
-                        attacks = MoveGenerator::get_rook_attacks(sq, board.occupancy[BOTH]);
-                        break;
-                    case BLACK_QUEEN:
-                        attacks = MoveGenerator::get_queen_attacks(sq, board.occupancy[BOTH]);
-                        break;
-                }
-                
-                // Count attacked squares (mobility)
-                int mobility = Bitboards::count_bits(attacks & ~board.occupancy[BLACK]);
-                black_score += mobility * 5;  // 3 cp per attacked square
-            }
-            
-            // Opening penalties for black
-            if (black_piece_count <= 16) {  // Opening phase
-                // Penalty for moving king early (unless castling)
-                if (piece == BLACK_KING) {
-                    int rank = rank_of(sq);
-                    // King should stay on back rank (rank 0-1) in opening
-                    if (rank > 1) {
-                        black_score -= 20;  // Penalty for moving king forward
-                    }
-                }
-            }
-        }
-    }
-    
-    // Opening penalty: blocking center pawns
-    // Check if center pawns (d/e files) are blocked by own pieces
-    if (white_piece_count <= 16 || black_piece_count <= 16) {
-        // White center pawns (d2, e2 in A8=0: rank 6, files 3,4)
-        Square d2 = square_from_coords(6, 3);
-        Square e2 = square_from_coords(6, 4);
-        if (board.piece_at(d2) == WHITE_PAWN) {
-            Square d3 = square_from_coords(5, 3);
-            if (board.piece_at(d3) != NO_PIECE && board.piece_at(d3) < BLACK_PAWN) {
-                white_score -= 15;  // Penalty for blocking own center pawn
-            }
-        }
-        if (board.piece_at(e2) == WHITE_PAWN) {
-            Square e3 = square_from_coords(5, 4);
-            if (board.piece_at(e3) != NO_PIECE && board.piece_at(e3) < BLACK_PAWN) {
-                white_score -= 15;
-            }
-        }
-        
-        // Black center pawns (d7, e7 in A8=0: rank 1, files 3,4)
-        Square d7 = square_from_coords(1, 3);
-        Square e7 = square_from_coords(1, 4);
-        if (board.piece_at(d7) == BLACK_PAWN) {
-            Square d6 = square_from_coords(2, 3);
-            if (board.piece_at(d6) != NO_PIECE && board.piece_at(d6) >= BLACK_PAWN) {
-                black_score -= 15;  // Penalty for blocking own center pawn
-            }
-        }
-        if (board.piece_at(e7) == BLACK_PAWN) {
-            Square e6 = square_from_coords(2, 4);
-            if (board.piece_at(e6) != NO_PIECE && board.piece_at(e6) >= BLACK_PAWN) {
-                black_score -= 15;
-            }
-        }
-    }
-    
-    // Calculate score from white's perspective: (WhiteScore - BlackScore)
-    int score = white_score - black_score;
-    
-    // CRITICAL: Negamax expects score relative to side to move
-    // If it's black's turn, negate the score (black wants to minimize white's advantage)
-    // If it's white's turn, return as-is (white wants to maximize)
-    return (board.side_to_move == WHITE) ? score : -score;
+    return evaluate_nnue(board);
 }
 
